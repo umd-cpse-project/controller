@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import msgpack
 import time
 import logging
 import ssl
 from os import getenv
+from typing import Any, NamedTuple, TYPE_CHECKING
 
 import cv2
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
+from paho.mqtt.client import MQTTMessage
+
+if TYPE_CHECKING:
+    from typing import Self
 
 load_dotenv()
 
@@ -25,6 +31,57 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+class Category(NamedTuple):
+    id: int
+    position: tuple[int, int]  # (x, y) coordinates
+    name: str
+    context: str = ''  # used to provide additional context
+    size: tuple[int, int] = (1, 1)  # (width, height)
+    hue: int = 0
+
+    @property
+    def x(self) -> int:
+        return self.position[0]
+
+    @property
+    def y(self) -> int:
+        return self.position[1]
+
+    @property
+    def width(self) -> int:
+        return self.size[0]
+
+    @property
+    def height(self) -> int:
+        return self.size[1]
+    
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> Self:
+        return cls(
+            id=raw['id'],
+            position=(raw['x'], raw['y']),
+            name=raw['name'],
+            context=raw['context'],
+            size=(raw['width'], raw['height']),
+            hue=raw['hue'],
+        )
+    
+    def __repr__(self) -> str:
+        return f'<Category id={self.id} position={self.position} name={self.name!r}>'
+
+
+class CategorizationResponse(NamedTuple):
+    category: Category
+    confidence: float
+    
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> Self:
+        return cls(
+            category=Category.from_dict(raw['category']),
+            confidence=raw['confidence'],
+        )
 
 
 class WebcamMQTTPublisher:
@@ -61,10 +118,12 @@ class WebcamMQTTPublisher:
             
             self.mqtt_client.on_connect = self.on_mqtt_connect
             self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
+            self.mqtt_client.on_message = self.on_mqtt_message
             self.mqtt_client.on_publish = self.on_mqtt_publish
 
             # Connect to broker
             self.mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
+            self.mqtt_client.subscribe('/categorization')
             self.mqtt_client.loop_start()
 
             logger.info(f"MQTT client setup complete. Connecting to {MQTT_HOST}:{MQTT_PORT}")
@@ -73,16 +132,25 @@ class WebcamMQTTPublisher:
             logger.error(f"Error setting up MQTT client: {e}")
             return False
 
-    def on_mqtt_connect(self, _client, _userdata, _flags, rc):
+    def on_mqtt_connect(self, _client, _userdata, _flags, rc, _properties=None):
         """Callback for when MQTT client connects"""
         if rc == 0:
             logger.info("Connected to MQTT broker successfully")
         else:
             logger.error(f"Failed to connect to MQTT broker. Return code: {rc}")
 
-    def on_mqtt_disconnect(self, _client, _userdata, _rc):
+    def on_mqtt_disconnect(self, *_args):
         """Callback for when MQTT client disconnects"""
         logger.warning("Disconnected from MQTT broker")
+
+    def on_mqtt_message(self, _client, _userdata, msg: MQTTMessage) -> None:
+        """Callback for when a message is received"""
+        if not msg.topic.startswith('/categorization'):
+            logger.debug(f"Received message on topic {msg.topic}, but not handling it")
+            return
+        
+        response = CategorizationResponse.from_dict(msgpack.loads(msg.payload))
+        logger.info(f"Received categorization response: {response!r}")
 
     def on_mqtt_publish(self, _client, _userdata, mid):
         """Callback for when message is published"""
