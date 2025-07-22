@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+import time
+import logging
+from os import getenv
+
+import cv2
+import paho.mqtt.client as mqtt
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MQTT_HOST = getenv('MQTT_HOST', 'localhost')
+MQTT_PORT = int(getenv('MQTT_PORT', 1883))
+
+WEBCAM_INDEX = 0  # Usually 0 for the first camera
+CAPTURE_INTERVAL = 5  # Seconds between captures
+IMAGE_QUALITY = 85  # JPEG quality (1-100)
+RESIZE_WIDTH = 480  # Resize image width (None to keep original)
+RESIZE_HEIGHT = 360  # Resize image height (None to keep original)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class WebcamMQTTPublisher:
+    def __init__(self):
+        self.camera = None
+        self.mqtt_client = None
+        self.is_running = False
+
+    def setup_camera(self) -> bool:
+        """Initialize the webcam"""
+        try:
+            self.camera = cv2.VideoCapture(WEBCAM_INDEX)
+            if not self.camera.isOpened():
+                logger.error(f"Failed to open camera at index {WEBCAM_INDEX}")
+                return False
+
+            # Set camera properties for better performance
+            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            self.camera.set(cv2.CAP_PROP_FPS, 30)
+
+            logger.info("Camera initialized successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting up camera: {e}")
+            return False
+
+    def setup_mqtt(self) -> bool:
+        """Initialize MQTT client"""
+        try:
+            self.mqtt_client = mqtt.Client(client_id='controller')
+            self.mqtt_client.username_pw_set(getenv('MQTT_USERNAME'), getenv('MQTT_PASSWORD'))
+            self.mqtt_client.on_connect = self.on_mqtt_connect
+            self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
+            self.mqtt_client.on_publish = self.on_mqtt_publish
+
+            # Connect to broker
+            self.mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
+            self.mqtt_client.loop_start()
+
+            logger.info(f"MQTT client setup complete. Connecting to {MQTT_HOST}:{MQTT_PORT}")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting up MQTT client: {e}")
+            return False
+
+    def on_mqtt_connect(self, _client, _userdata, _flags, rc):
+        """Callback for when MQTT client connects"""
+        if rc == 0:
+            logger.info("Connected to MQTT broker successfully")
+        else:
+            logger.error(f"Failed to connect to MQTT broker. Return code: {rc}")
+
+    def on_mqtt_disconnect(self, _client, _userdata, _rc):
+        """Callback for when MQTT client disconnects"""
+        logger.warning("Disconnected from MQTT broker")
+
+    def on_mqtt_publish(self, _client, _userdata, mid):
+        """Callback for when message is published"""
+        logger.debug(f"Message {mid} published successfully")
+
+    def capture_image(self) -> bytes | None:
+        """Capture an image from the webcam"""
+        try:
+            ret, frame = self.camera.read()
+            if not ret:
+                logger.error("Failed to capture image from camera")
+                return None
+
+            # Resize image if specified
+            if RESIZE_WIDTH and RESIZE_HEIGHT:
+                frame = cv2.resize(frame, (RESIZE_WIDTH, RESIZE_HEIGHT))
+
+            # Encode image as JPEG
+            encode_params = [cv2.IMWRITE_JPEG_QUALITY, IMAGE_QUALITY]
+            _, buffer = cv2.imencode('.jpg', frame, encode_params)
+
+            return buffer.tobytes()
+
+        except Exception as e:
+            logger.error(f"Error capturing image: {e}")
+            return None
+
+    def publish_image(self, image_data: bytes) -> bool:
+        """Publish image to MQTT broker"""
+        try:
+            result = self.mqtt_client.publish('/webcam', image_data, qos=1)
+
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                logger.info(f"Image published successfully ({len(image_data)} bytes)")
+                return True
+            else:
+                logger.error(f"Failed to publish image. Error code: {result.rc}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error publishing image: {e}")
+            return False
+
+    def run(self):
+        """Main execution loop"""
+        logger.info("Starting Webcam to MQTT Publisher")
+
+        # Initialize camera and MQTT
+        if not self.setup_camera():
+            logger.error("Failed to setup camera. Exiting.")
+            return
+
+        if not self.setup_mqtt():
+            logger.error("Failed to setup MQTT client. Exiting.")
+            return
+
+        self.is_running = True
+
+        try:
+            while self.is_running:
+                # Capture image
+                image_data = self.capture_image()
+                if image_data:
+                    # Publish to MQTT
+                    self.publish_image(image_data)
+                else:
+                    logger.warning("No image data captured, skipping publish")
+
+                # Wait for next capture
+                time.sleep(CAPTURE_INTERVAL)
+
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt. Shutting down...")
+        except Exception as e:
+            logger.error(f"Unexpected error in main loop: {e}")
+        finally:
+            self.cleanup()
+
+    def cleanup(self):
+        """Clean up resources"""
+        logger.info("Cleaning up resources...")
+
+        self.is_running = False
+
+        if self.camera:
+            self.camera.release()
+            logger.info("Camera released")
+
+        if self.mqtt_client:
+            self.mqtt_client.loop_stop()
+            self.mqtt_client.disconnect()
+            logger.info("MQTT client disconnected")
+
+        cv2.destroyAllWindows()
+
+
+def main():
+    """Main entry point"""
+    publisher = WebcamMQTTPublisher()
+    publisher.run()
+
+
+if __name__ == "__main__":
+    main()
