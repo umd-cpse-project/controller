@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import logging
+import ssl
 from os import getenv
 
 import cv2
@@ -54,8 +55,10 @@ class WebcamMQTTPublisher:
     def setup_mqtt(self) -> bool:
         """Initialize MQTT client"""
         try:
-            self.mqtt_client = mqtt.Client(client_id='controller')
+            self.mqtt_client = mqtt.Client(client_id='controller', userdata=None, protocol=mqtt.MQTTv5)
+            self.mqtt_client.tls_set(tls_version=ssl.PROTOCOL_TLS)
             self.mqtt_client.username_pw_set(getenv('MQTT_USERNAME'), getenv('MQTT_PASSWORD'))
+            
             self.mqtt_client.on_connect = self.on_mqtt_connect
             self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
             self.mqtt_client.on_publish = self.on_mqtt_publish
