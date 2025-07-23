@@ -1,5 +1,6 @@
 import time
 from logging import getLogger
+from textwrap import wrap
 
 import smbus2 as smbus
 
@@ -36,15 +37,14 @@ class LCDDisplay:
         self.send_command(0x01)  # Clear sreen
         self.bus.write_byte(self.addr, 0x08)
         
-    def write_word(self, data):
-        temp = data
+    def write_word(self, data: int) -> None:
         if self.backlight_enabled:
-            temp |= 0x08
+            data |= 0x08
         else:
-            temp &= 0xF7
-        self.bus.write_byte(self.addr, temp)
+            data &= 0xF7
+        self.bus.write_byte(self.addr, data)
 
-    def send_command(self, cmd: int):
+    def send_command(self, cmd: int) -> None:
         # Send bit7-4 firstly
         buf = cmd & 0xF0
         buf |= 0x04  # RS = 0, RW = 0, EN = 1
@@ -62,7 +62,7 @@ class LCDDisplay:
         self.write_word(buf)
     
     
-    def send_data(self, data):
+    def send_data(self, data: int) -> None:
         # Send bit7-4 firstly
         buf = data & 0xF0
         buf |= 0x05  # RS = 1, RW = 0, EN = 1
@@ -86,7 +86,7 @@ class LCDDisplay:
         self.bus.write_byte(0x27, 0x08)
         self.bus.close()
 
-    def write(self, x: int, y: int, text: str) -> None:
+    def _write(self, text: str, x: int, y: int) -> None:
         if x < 0:
             x = 0
         if x > 15:
@@ -103,8 +103,28 @@ class LCDDisplay:
         for char in text:
             self.send_data(ord(char))
 
+    def write_top(self, text: str, *, offset_left: int = 0) -> None:
+        self._write(text, offset_left, 0)
+        
+    def write_bottom(self, text: str, *, offset_left: int = 0) -> None:
+        self._write(text, offset_left, 1)
+        
+    def write(self, text: str, *, offset_left: int = 0) -> None:
+        """Write text to the LCD display, wrapping if necessary."""
+        width = 16 - offset_left
+        lines = wrap(text, width)
+        if len(lines) > 2:
+            lines = lines[:2]
+            
+        if len(lines) == 1:
+            self.write_top(lines[0], offset_left=offset_left)
+            return
+        
+        top, bottom = lines
+        self.write_top(top, offset_left=offset_left)
+        self.write_bottom(bottom, offset_left=offset_left)
+
 
 if __name__ == '__main__':
     display = LCDDisplay(0x27)
-    display.write(4, 0, 'Hello')
-    display.write(7, 1, 'world!')
+    display.write('Hello, world')

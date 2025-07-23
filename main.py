@@ -12,6 +12,8 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from paho.mqtt.client import MQTTMessage
 
+from lcd_display import LCDDisplay
+
 if TYPE_CHECKING:
     from typing import Self
 
@@ -85,10 +87,11 @@ class CategorizationResponse(NamedTuple):
 
 
 class WebcamMQTTPublisher:
-    def __init__(self):
+    def __init__(self) -> None:
         self.camera = None
         self.mqtt_client = None
-        self.is_running = False
+        self.is_running: bool = False
+        self.display = LCDDisplay(addr=0x27, backlight_enabled=True)
 
     def setup_camera(self) -> bool:
         """Initialize the webcam"""
@@ -151,6 +154,8 @@ class WebcamMQTTPublisher:
         
         response = CategorizationResponse.from_dict(msgpack.loads(msg.payload))
         logger.info(f"Received categorization response: {response!r}")
+        self.display.write_top('Category:')
+        self.display.write_bottom(response.category.name, offset_left=16 - len(response.category.name))
 
     def on_mqtt_publish(self, _client, _userdata, mid):
         """Callback for when message is published"""
@@ -201,13 +206,16 @@ class WebcamMQTTPublisher:
         # Initialize camera and MQTT
         if not self.setup_camera():
             logger.error("Failed to setup camera. Exiting.")
+            self.display.write('Failed camera setup, restart!')
             return
 
         if not self.setup_mqtt():
             logger.error("Failed to setup MQTT client. Exiting.")
+            self.display.write('Failed conn to MQTT, restart!')
             return
 
         self.is_running = True
+        self.display.write('Ready...')
 
         try:
             while self.is_running:
@@ -216,6 +224,7 @@ class WebcamMQTTPublisher:
                 if image_data:
                     # Publish to MQTT
                     self.publish_image(image_data)
+                    self.display.write('Processing image...')
                 else:
                     logger.warning("No image data captured, skipping publish")
 
@@ -223,8 +232,12 @@ class WebcamMQTTPublisher:
                 time.sleep(CAPTURE_INTERVAL)
 
         except KeyboardInterrupt:
+            self.display.write_top('Shutting down...')
+            self.display.write_bottom('(Received SIGKILL)')
             logger.info("Received keyboard interrupt. Shutting down...")
         except Exception as e:
+            self.display.write_top('Error! Stopping...')
+            self.display.write_bottom(str(e))
             logger.error(f"Unexpected error in main loop: {e}")
         finally:
             self.cleanup()
