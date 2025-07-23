@@ -154,6 +154,8 @@ class WebcamMQTTPublisher:
         
         response = CategorizationResponse.from_dict(msgpack.loads(msg.payload))
         logger.info(f"Received categorization response: {response!r}")
+        
+        self.display.clear()
         self.display.write_top('Category:')
         self.display.write_bottom(response.category.name, offset_left=16 - len(response.category.name))
 
@@ -232,12 +234,10 @@ class WebcamMQTTPublisher:
                 time.sleep(CAPTURE_INTERVAL)
 
         except KeyboardInterrupt:
-            self.display.write_top('Shutting down...')
-            self.display.write_bottom('(Received SIGKILL)')
+            self.display.write('Shutting down...', 'Received SIGINT')
             logger.info("Received keyboard interrupt. Shutting down...")
         except Exception as e:
-            self.display.write_top('Error! Stopping...')
-            self.display.write_bottom(str(e))
+            self.display.write('Error! Stopping...', str(e))
             logger.error(f"Unexpected error in main loop: {e}")
         finally:
             self.cleanup()

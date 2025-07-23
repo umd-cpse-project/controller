@@ -60,8 +60,7 @@ class LCDDisplay:
         time.sleep(0.002)
         buf &= 0xFB  # Make EN = 0
         self.write_word(buf)
-    
-    
+
     def send_data(self, data: int) -> None:
         # Send bit7-4 firstly
         buf = data & 0xF0
@@ -109,17 +108,20 @@ class LCDDisplay:
     def write_bottom(self, text: str, *, offset_left: int = 0) -> None:
         self._write(text, offset_left, 1)
         
-    def write(self, text: str, *, offset_left: int = 0) -> None:
+    def write(self, text: str, bottom_text: str | None = None, *, offset_left: int = 0) -> None:
         """Write text to the LCD display, wrapping if necessary."""
+        self.clear()
         width = 16 - offset_left
         lines = wrap(text, width)
         if len(lines) > 2:
             lines = lines[:2]
-            
-        if len(lines) == 1:
-            self.write_top(lines[0], offset_left=offset_left)
-            return
-        
+        elif len(lines) == 1:
+            if bottom_text is None:
+                self.write_top(lines[0], offset_left=offset_left)
+                return
+            else:
+                lines.append(bottom_text)
+
         top, bottom = lines
         self.write_top(top, offset_left=offset_left)
         self.write_bottom(bottom, offset_left=offset_left)
