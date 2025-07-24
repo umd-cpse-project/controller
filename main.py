@@ -10,6 +10,8 @@ from typing import Any, NamedTuple, TYPE_CHECKING
 import cv2
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
+from gpiozero import Button, Device
+from gpiozero.pins.rpigpio import RPiGPIOFactory
 from paho.mqtt.client import MQTTMessage
 
 from lcd_display import LCDDisplay
@@ -27,6 +29,8 @@ CAPTURE_INTERVAL = 5  # Seconds between captures
 IMAGE_QUALITY = 85  # JPEG quality (1-100)
 RESIZE_WIDTH = 480  # Resize image width (None to keep original)
 RESIZE_HEIGHT = 360  # Resize image height (None to keep original)
+
+Device.pin_factory = RPiGPIOFactory()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -92,6 +96,8 @@ class WebcamMQTTPublisher:
         self.mqtt_client = None
         self.is_running: bool = False
         self.display = LCDDisplay(addr=0x27, backlight_enabled=True)
+        self.button = Button(17)
+        self.button.when_pressed = self.process_image  # Trigger image capture on button press
 
     def setup_camera(self) -> bool:
         """Initialize the webcam"""
@@ -201,6 +207,15 @@ class WebcamMQTTPublisher:
             logger.error(f"Error publishing image: {e}")
             return False
 
+    def process_image(self) -> None:
+        image_data = self.capture_image()
+        if image_data:
+            # Publish to MQTT
+            self.publish_image(image_data)
+            self.display.write('Processing image...')
+        else:
+            logger.warning("No image data captured, skipping publish")
+
     def run(self):
         """Main execution loop"""
         logger.info("Starting Webcam to MQTT Publisher")
@@ -221,18 +236,18 @@ class WebcamMQTTPublisher:
 
         try:
             while self.is_running:
-                # Capture image
-                image_data = self.capture_image()
-                if image_data:
-                    # Publish to MQTT
-                    self.publish_image(image_data)
-                    self.display.write('Processing image...')
-                else:
-                    logger.warning("No image data captured, skipping publish")
-
-                # Wait for next capture
-                time.sleep(CAPTURE_INTERVAL)
-
+                # # Capture image
+                # image_data = self.capture_image()
+                # if image_data:
+                #     # Publish to MQTT
+                #     self.publish_image(image_data)
+                #     self.display.write('Processing image...')
+                # else:
+                #     logger.warning("No image data captured, skipping publish")
+                # 
+                # # Wait for next capture
+                # time.sleep(CAPTURE_INTERVAL)
+                pass
         except KeyboardInterrupt:
             self.display.write('Shutting down...', 'Received SIGINT')
             logger.info("Received keyboard interrupt. Shutting down...")

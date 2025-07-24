@@ -2,6 +2,7 @@ opencv-python
 paho-mqtt
 python-dotenv
 msgpack
+RPi.GPIO
 gpiozero
 smbus2
-RPi.GPIO
+rpi-lgpio
