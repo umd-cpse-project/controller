@@ -308,7 +308,6 @@ class WebcamMQTTPublisher:
 
         if self.webcam:
             self.webcam.release()
-            logger.info("Camera released")
 
         if self.mqtt_client:
             self.mqtt_client.loop_stop()
