@@ -30,6 +30,7 @@ IMAGE_QUALITY = 85  # JPEG quality (1-100)
 RESIZE_WIDTH = 360  # Resize image width (None to keep original)
 RESIZE_HEIGHT = 270  # Resize image height (None to keep original)
 CAP_WEBCAM_FPS = 5  # Frames per second for webcam capture
+CAP_BUFFER_SIZE = 3  # Buffer size for webcam capture
 
 Device.pin_factory = RPiGPIOFactory()
 
@@ -112,6 +113,7 @@ class WebcamMQTTPublisher:
             self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, RESIZE_WIDTH)
             self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, RESIZE_WIDTH)
             self.camera.set(cv2.CAP_PROP_FPS, CAP_WEBCAM_FPS)
+            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, CAP_BUFFER_SIZE)
 
             logger.info("Camera initialized successfully")
             return True
@@ -191,8 +193,6 @@ class WebcamMQTTPublisher:
             # Resize image if specified
             if RESIZE_WIDTH and RESIZE_HEIGHT and RESIZE_WIDTH != width and RESIZE_HEIGHT != height:
                 frame = cv2.resize(frame, (RESIZE_WIDTH, RESIZE_HEIGHT))
-
-            cv2.imshow('Webcam', frame)
 
             # Encode image as JPEG
             encode_params = [cv2.IMWRITE_JPEG_QUALITY, IMAGE_QUALITY]
