@@ -98,11 +98,12 @@ class Webcam(Thread):
     def __init__(self, camera, *, thread_name='webcam-thread'):
         self._camera = camera
         self._last_frame = None
+        self._run: bool = True
         super(Webcam, self).__init__(name=thread_name)
         self.start()
 
     def run(self):
-        while True:
+        while self._run:
             ret, self._last_frame = self._camera.read()
             time.sleep(1 / CAP_WEBCAM_FPS)
             
@@ -113,6 +114,7 @@ class Webcam(Thread):
     
     def release(self) -> None:
         """Release the camera resources"""
+        self._run = False
         if self._camera:
             self._camera.release()
             logger.info("Webcam released")
