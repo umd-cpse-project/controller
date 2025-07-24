@@ -32,7 +32,6 @@ IMAGE_QUALITY = 85  # JPEG quality (1-100)
 RESIZE_WIDTH = 360  # Resize image width (None to keep original)
 RESIZE_HEIGHT = 270  # Resize image height (None to keep original)
 CAP_WEBCAM_FPS = 5  # Frames per second for webcam capture
-CAP_BUFFER_SIZE = 10  # Buffer size for webcam capture
 
 Device.pin_factory = RPiGPIOFactory()
 
@@ -105,7 +104,6 @@ class Webcam(Thread):
     def run(self):
         while self._run:
             ret, self._last_frame = self._camera.read()
-            time.sleep(1 / CAP_WEBCAM_FPS)
             
     def read(self) -> tuple[bool, cv2.Mat]:
         if self._last_frame is None:
@@ -144,7 +142,6 @@ class WebcamMQTTPublisher:
             camera.set(cv2.CAP_PROP_FRAME_WIDTH, RESIZE_WIDTH)
             camera.set(cv2.CAP_PROP_FRAME_HEIGHT, RESIZE_WIDTH)
             camera.set(cv2.CAP_PROP_FPS, CAP_WEBCAM_FPS)
-            camera.set(cv2.CAP_PROP_BUFFERSIZE, CAP_BUFFER_SIZE)
             self.webcam = Webcam(camera)
 
             logger.info("Camera initialized successfully")
