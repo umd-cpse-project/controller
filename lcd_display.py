@@ -14,6 +14,7 @@ class LCDDisplay:
         self.addr: int = addr
         self.backlight_enabled: bool = backlight_enabled
         self.bus: smbus.SMBus = smbus.SMBus(1)
+        self._is_writing: bool = False
         try:
             self.setup()
         except Exception as exc:
@@ -84,8 +85,14 @@ class LCDDisplay:
     def openlight(self) -> None:  # Enable the backlight
         self.bus.write_byte(0x27, 0x08)
         self.bus.close()
+        
+    def _wait(self) -> None:
+        while self._is_writing:
+            time.sleep(0.002)
 
     def _write(self, text: str, x: int, y: int) -> None:
+        self._wait()
+        self._is_writing = True
         if x < 0:
             x = 0
         if x > 15:
@@ -101,6 +108,7 @@ class LCDDisplay:
     
         for char in text:
             self.send_data(ord(char))
+        self._is_writing = False
 
     def write_top(self, text: str, *, offset_left: int = 0) -> None:
         self._write(text, offset_left, 0)
