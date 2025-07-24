@@ -80,6 +80,7 @@ class LCDDisplay:
         self.write_word(buf)
 
     def clear(self) -> None:
+        self._wait()
         self.send_command(0x01)  # Clear Screen
     
     def openlight(self) -> None:  # Enable the backlight
@@ -118,7 +119,6 @@ class LCDDisplay:
         
     def write(self, text: str, bottom_text: str | None = None, *, offset_left: int = 0) -> None:
         """Write text to the LCD display, wrapping if necessary."""
-        self._wait()
         self.clear()
         width = 16 - offset_left
         lines = wrap(text, width)
