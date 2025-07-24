@@ -192,6 +192,8 @@ class WebcamMQTTPublisher:
             if RESIZE_WIDTH and RESIZE_HEIGHT and RESIZE_WIDTH != width and RESIZE_HEIGHT != height:
                 frame = cv2.resize(frame, (RESIZE_WIDTH, RESIZE_HEIGHT))
 
+            cv2.imshow('Webcam', frame)
+
             # Encode image as JPEG
             encode_params = [cv2.IMWRITE_JPEG_QUALITY, IMAGE_QUALITY]
             _, buffer = cv2.imencode('.jpg', frame, encode_params)
