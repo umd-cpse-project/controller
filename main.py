@@ -27,8 +27,9 @@ MQTT_PORT = int(getenv('MQTT_PORT', 1883))
 WEBCAM_INDEX = 0  # Usually 0 for the first camera
 CAPTURE_INTERVAL = 5  # Seconds between captures
 IMAGE_QUALITY = 85  # JPEG quality (1-100)
-RESIZE_WIDTH = 480  # Resize image width (None to keep original)
-RESIZE_HEIGHT = 360  # Resize image height (None to keep original)
+RESIZE_WIDTH = 360  # Resize image width (None to keep original)
+RESIZE_HEIGHT = 270  # Resize image height (None to keep original)
+CAP_WEBCAM_FPS = 5  # Frames per second for webcam capture
 
 Device.pin_factory = RPiGPIOFactory()
 
@@ -108,9 +109,9 @@ class WebcamMQTTPublisher:
                 return False
 
             # Set camera properties for better performance
-            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            self.camera.set(cv2.CAP_PROP_FPS, 30)
+            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, RESIZE_WIDTH)
+            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, RESIZE_WIDTH)
+            self.camera.set(cv2.CAP_PROP_FPS, CAP_WEBCAM_FPS)
 
             logger.info("Camera initialized successfully")
             return True
@@ -131,8 +132,9 @@ class WebcamMQTTPublisher:
             self.mqtt_client.on_publish = self.on_mqtt_publish
 
             # Connect to broker
-            self.mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
+            self.mqtt_client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
             self.mqtt_client.subscribe('/categorization')
+            self.mqtt_client.subscribe('/error/categorization')
             self.mqtt_client.loop_start()
 
             logger.info(f"MQTT client setup complete. Connecting to {MQTT_HOST}:{MQTT_PORT}")
@@ -154,6 +156,14 @@ class WebcamMQTTPublisher:
 
     def on_mqtt_message(self, _client, _userdata, msg: MQTTMessage) -> None:
         """Callback for when a message is received"""
+        if msg.topic.startswith('/error'):
+            error = msgpack.loads(msg.payload)
+            try:
+                logger.warning(f'Error received in {error["context"]!r}: {error["error"]}')
+            except KeyError:
+                logger.warning(f'Error received in {msg.topic}: {error}')
+            return
+        
         if not msg.topic.startswith('/categorization'):
             logger.debug(f"Received message on topic {msg.topic}, but not handling it")
             return
@@ -177,8 +187,9 @@ class WebcamMQTTPublisher:
                 logger.error("Failed to capture image from camera")
                 return None
 
+            height, width, _ = frame.shape
             # Resize image if specified
-            if RESIZE_WIDTH and RESIZE_HEIGHT:
+            if RESIZE_WIDTH and RESIZE_HEIGHT and RESIZE_WIDTH != width and RESIZE_HEIGHT != height:
                 frame = cv2.resize(frame, (RESIZE_WIDTH, RESIZE_HEIGHT))
 
             # Encode image as JPEG
