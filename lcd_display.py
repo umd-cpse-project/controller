@@ -1,3 +1,4 @@
+import threading
 import time
 from logging import getLogger
 from textwrap import wrap
@@ -14,6 +15,8 @@ class LCDDisplay:
         self.addr: int = addr
         self.backlight_enabled: bool = backlight_enabled
         self.bus: smbus.SMBus = smbus.SMBus(1)
+        self._tlock = threading.Lock()
+        self._block = threading.Lock()
         try:
             self.setup()
         except Exception as exc:
@@ -103,10 +106,12 @@ class LCDDisplay:
             self.send_data(ord(char))
 
     def write_top(self, text: str, *, offset_left: int = 0) -> None:
-        self._write(text, offset_left, 0)
+        with self._tlock:
+            self._write(text, offset_left, 0)
         
     def write_bottom(self, text: str, *, offset_left: int = 0) -> None:
-        self._write(text, offset_left, 1)
+        with self._block:
+            self._write(text, offset_left, 1)
         
     def write(self, text: str, bottom_text: str | None = None, *, offset_left: int = 0) -> None:
         """Write text to the LCD display, wrapping if necessary."""
