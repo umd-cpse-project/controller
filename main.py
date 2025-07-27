@@ -13,14 +13,24 @@ import cv2
 import msgpack
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
-from gpiozero import Button, Device
-from gpiozero.pins.rpigpio import RPiGPIOFactory
 from paho.mqtt.client import Client as MQTTClient, MQTTMessage
 
-from lcd_display import LCDDisplay
+try:
+    import RPi.GPIO
+    IS_RPI = True
+except ImportError:
+    print('Note: running in non-RPi environment!')
+    IS_RPI = False
 
 if TYPE_CHECKING:
     from typing import Self
+
+if TYPE_CHECKING or IS_RPI:
+    from gpiozero import Button, Device
+    from gpiozero.pins.rpigpio import RPiGPIOFactory
+    from lcd_display import LCDDisplay
+else:
+    from mock_gpio import Button, Device, RPiGPIOFactory, LCDDisplay
 
 load_dotenv()
 
@@ -126,12 +136,21 @@ class SystemState(Enum):
     processing = 1
     sorting = 2
 
+    def to_status_name(self) -> str:
+        return {
+            SystemState.idle: 'online',
+            SystemState.processing: 'processing',
+            SystemState.sorting: 'sorting',
+        }[self]
+
 
 class WebcamMQTTPublisher:
-    def __init__(self) -> None:
+    def __init__(self, *, keepalive: float = 8.0) -> None:
         self.webcam: Webcam = None
         self.mqtt_client: MQTTClient = None
         self.is_running: bool = False
+        self._keepalive: float = keepalive
+        self._next_keepalive_due: datetime.datetime = datetime.datetime.now()
 
         self.state: SystemState = SystemState.idle
         self.last_sort_request: datetime.datetime | None = None
@@ -218,18 +237,11 @@ class WebcamMQTTPublisher:
         
         response = CategorizationResponse.from_dict(msgpack.loads(msg.payload))
         logger.info(f"Received categorization response: {response!r}")
-        
-        self.set_sorting(response.category)
-        self.display.clear()
-        self.display.write_top('Category:')
-        self.display.write_bottom(response.category.name, offset_left=16 - len(response.category.name))
-        
-        # TODO: trigger sorting mechanism here
-        time.sleep(2)  # Simulate some physical sorting time
-        self.set_idle()
+        Thread(target=self.process_sort_request, name='sort-worker', args=(response.category,)).start()
 
     def on_mqtt_publish(self, _client, _userdata, mid):
         """Callback for when message is published"""
+        print('publish:', mid)
         logger.debug(f"Message {mid} published successfully")
 
     def capture_image(self) -> bytes | None:
@@ -280,6 +292,16 @@ class WebcamMQTTPublisher:
         else:
             logger.warning("No image data captured, skipping publish")
 
+    def process_sort_request(self, target: Category) -> None:
+        self.set_sorting(target)
+        self.display.clear()
+        self.display.write_top('Category:')
+        self.display.write_bottom(target.name, offset_left=16 - len(target.name))
+
+        # TODO: trigger actual sorting mechanism here
+        time.sleep(2)  # Simulate some physical sorting time
+        self.set_idle()
+
     def set_idle(self) -> None:
         self.state = SystemState.idle
         logger.debug("System state set to idle")
@@ -298,26 +320,18 @@ class WebcamMQTTPublisher:
         self.update_status()
 
     def _status_to_dict(self) -> dict[str, Any] | None:
-        if self.state is SystemState.idle:
-            return {
-                'status': 'online',
-                'last_sort': self.last_sort_request.isoformat() if self.last_sort_request else None,
-            }
-        elif self.state is SystemState.processing:
-            return {
-                'status': 'processing',
-                'last_sort': self.last_sort_request.isoformat() if self.last_sort_request else None,
-            }
-        elif self.state is SystemState.sorting:
-            return {
-                'status': 'sorting',
-                'last_sort': self.last_sort_request.isoformat() if self.last_sort_request else None,
-                'target_id': self.last_sort_target.id if self.last_sort_target else None,
-            }
-        return None
+        return {
+            'status': self.state.to_status_name(),
+            'last_sort': self.last_sort_request.isoformat() if self.last_sort_request else None,
+            'target_id': (
+                self.last_sort_target.id
+                if self.last_sort_target and self.state is SystemState.sorting else None
+            ),
+        }
         
     def update_status(self) -> None:
         """Sends a status update through MQTT /status topic"""
+        self._next_keepalive_due = datetime.datetime.now() + datetime.timedelta(seconds=self._keepalive)
         status = self._status_to_dict()
         if not status:
             logger.warning("Invalid status to update")
@@ -326,7 +340,7 @@ class WebcamMQTTPublisher:
         try:
             result = self.mqtt_client.publish('/status', msgpack.dumps(status))
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                logger.info(f"Status updated: {status}")
+                logger.info(f"Status updated: {status} (mid: {result.mid})")
             else:
                 logger.error(f"Failed to publish status. Error code: {result.rc}")
         except Exception as e:
@@ -352,8 +366,11 @@ class WebcamMQTTPublisher:
 
         try:
             while self.is_running:
-                self.update_status()
-                time.sleep(5)
+                delta = self._next_keepalive_due - datetime.datetime.now()
+                remaining = delta.total_seconds()
+                if remaining <= 0.0:
+                    self.update_status()
+                time.sleep(max(0.5, remaining))
         except KeyboardInterrupt:
             self.display.write('Shutting down...', 'Received SIGINT')
             logger.info("Received keyboard interrupt. Shutting down...")
