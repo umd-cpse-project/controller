@@ -3,7 +3,6 @@ from __future__ import annotations
 from threading import Thread
 
 import msgpack
-import time
 import logging
 import ssl
 from os import getenv
