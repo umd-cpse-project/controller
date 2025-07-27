@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from threading import Thread
-
-import msgpack
+import datetime
 import logging
 import ssl
+import time
+from enum import Enum
 from os import getenv
+from threading import Thread
 from typing import Any, NamedTuple, TYPE_CHECKING
 
 import cv2
+import msgpack
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from gpiozero import Button, Device
@@ -119,11 +121,21 @@ class Webcam(Thread):
             logger.warning("No webcam to release")
 
 
+class SystemState(Enum):
+    idle = 0
+    processing = 1
+    sorting = 2
+
+
 class WebcamMQTTPublisher:
     def __init__(self) -> None:
         self.webcam: Webcam = None
         self.mqtt_client: MQTTClient = None
         self.is_running: bool = False
+
+        self.state: SystemState = SystemState.idle
+        self.last_sort_request: datetime.datetime | None = None
+        self.last_sort_target: Category | None = None
 
         self.display = LCDDisplay(addr=0x27, backlight_enabled=True)
         self.button = Button(17)
@@ -163,6 +175,7 @@ class WebcamMQTTPublisher:
 
             # Connect to broker
             self.mqtt_client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+            self.mqtt_client.subscribe('/capture')
             self.mqtt_client.subscribe('/categorization')
             self.mqtt_client.subscribe('/error/categorization')
             self.mqtt_client.loop_start()
@@ -194,6 +207,11 @@ class WebcamMQTTPublisher:
                 logger.warning(f'Error received in {msg.topic}: {error}')
             return
         
+        elif msg.topic == '/capture':
+            logger.info("Received manual capture request")
+            self.process_image()
+            return
+        
         if not msg.topic.startswith('/categorization'):
             logger.debug(f"Received message on topic {msg.topic}, but not handling it")
             return
@@ -201,9 +219,14 @@ class WebcamMQTTPublisher:
         response = CategorizationResponse.from_dict(msgpack.loads(msg.payload))
         logger.info(f"Received categorization response: {response!r}")
         
+        self.set_sorting(response.category)
         self.display.clear()
         self.display.write_top('Category:')
         self.display.write_bottom(response.category.name, offset_left=16 - len(response.category.name))
+        
+        # TODO: trigger sorting mechanism here
+        time.sleep(2)  # Simulate some physical sorting time
+        self.set_idle()
 
     def on_mqtt_publish(self, _client, _userdata, mid):
         """Callback for when message is published"""
@@ -233,11 +256,12 @@ class WebcamMQTTPublisher:
             return None
 
     def publish_image(self, image_data: bytes) -> bool:
-        """Publish image to MQTT broker"""
+        """Publish image to MQTT broker for processing"""
         try:
-            result = self.mqtt_client.publish('/webcam', image_data, qos=1)
+            result = self.mqtt_client.publish('/webcam', image_data)
 
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                self.set_processing()
                 logger.info(f"Image published successfully ({len(image_data)} bytes)")
                 return True
             else:
@@ -253,9 +277,60 @@ class WebcamMQTTPublisher:
         if image_data:
             # Publish to MQTT
             self.publish_image(image_data)
-            self.display.write('Processing image...')
         else:
             logger.warning("No image data captured, skipping publish")
+
+    def set_idle(self) -> None:
+        self.state = SystemState.idle
+        logger.debug("System state set to idle")
+        self.update_status()
+        
+    def set_processing(self) -> None:
+        self.state = SystemState.processing
+        self.last_sort_request = datetime.datetime.now()
+        logger.debug("System state set to processing")
+        self.update_status()
+        
+    def set_sorting(self, target: Category) -> None:
+        self.state = SystemState.sorting
+        self.last_sort_target = target
+        logger.debug(f"System state set to sorting with target {target!r}")
+        self.update_status()
+
+    def _status_to_dict(self) -> dict[str, Any] | None:
+        if self.state is SystemState.idle:
+            return {
+                'status': 'online',
+                'last_sort': self.last_sort_request.isoformat() if self.last_sort_request else None,
+            }
+        elif self.state is SystemState.processing:
+            return {
+                'status': 'processing',
+                'last_sort': self.last_sort_request.isoformat() if self.last_sort_request else None,
+            }
+        elif self.state is SystemState.sorting:
+            return {
+                'status': 'sorting',
+                'last_sort': self.last_sort_request.isoformat() if self.last_sort_request else None,
+                'target_id': self.last_sort_target.id if self.last_sort_target else None,
+            }
+        return None
+        
+    def update_status(self) -> None:
+        """Sends a status update through MQTT /status topic"""
+        status = self._status_to_dict()
+        if not status:
+            logger.warning("Invalid status to update")
+            return
+
+        try:
+            result = self.mqtt_client.publish('/status', msgpack.dumps(status))
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                logger.info(f"Status updated: {status}")
+            else:
+                logger.error(f"Failed to publish status. Error code: {result.rc}")
+        except Exception as e:
+            logger.error(f"Error updating status: {e}")
 
     def run(self):
         """Main execution loop"""
@@ -277,18 +352,8 @@ class WebcamMQTTPublisher:
 
         try:
             while self.is_running:
-                # # Capture image
-                # image_data = self.capture_image()
-                # if image_data:
-                #     # Publish to MQTT
-                #     self.publish_image(image_data)
-                #     self.display.write('Processing image...')
-                # else:
-                #     logger.warning("No image data captured, skipping publish")
-                # 
-                # # Wait for next capture
-                # time.sleep(CAPTURE_INTERVAL)
-                pass
+                self.update_status()
+                time.sleep(5)
         except KeyboardInterrupt:
             self.display.write('Shutting down...', 'Received SIGINT')
             logger.info("Received keyboard interrupt. Shutting down...")
