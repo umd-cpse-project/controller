@@ -241,7 +241,6 @@ class WebcamMQTTPublisher:
 
     def on_mqtt_publish(self, _client, _userdata, mid):
         """Callback for when message is published"""
-        print('publish:', mid)
         logger.debug(f"Message {mid} published successfully")
 
     def capture_image(self) -> bytes | None:
