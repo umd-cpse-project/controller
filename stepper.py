@@ -1,19 +1,71 @@
 from __future__ import annotations
 
+from enum import Enum
 from threading import Thread
 from time import sleep
 
 from gpiozero import OutputDevice
 
-__all__ = ('Stepper',)
+__all__ = ('Stepper', 'Direction')
 
-_IN1, _IN2, _IN3, _IN4 = 12, 16, 8, 10
+DEFAULT_PINS = 23, 24, 25, 12
+
+
+class Direction(Enum):
+    cw = -1  # Clockwise
+    ccw = 1  # Counter-clockwise
 
 
 class Stepper:
-    def __init__(self, *pins: int, seq: list[list[int]] | None = None, steps_per_revolution: int = 2048) -> None:
+    """Interface over a single stepper motor.
+    
+    Parameters
+    ----------
+    *pins: int
+        The GPIO pins connected to the stepper motor.
+    seq: list[list[int]] | None
+        The sequence of steps to perform. If None, a default sequence is used.
+    steps_per_revolution: int
+        The number of steps per revolution for the stepper motor.
+    delay: float
+        The starting delay between steps, in seconds.
+    accel_steps: int
+        The number of steps to accelerate before reaching full speed.
+    max_delay: float
+        The base delay to use when accelerating, in seconds.
+    direction: Direction
+        The direction the stepper motor should turn (for continuous mode).
+    """
+    
+    __slots__ = (
+        'pins',
+        'seq',
+        'steps',
+        'target',
+        'steps_per_revolution',
+        'accel_steps',
+        '_delay',
+        '_max_delay',
+        'direction',
+        '_worker',
+        '_worker_keepalive',
+        '_worker_busy',
+    )
+    
+    _delay: float
+    
+    def __init__(
+        self,
+        *pins: int,
+        seq: list[list[int]] | None = None,
+        steps_per_revolution: int = 200,
+        delay: float = 0.001,
+        accel_steps: int = 0,
+        max_delay: float = 0.007,
+        direction: Direction = Direction.ccw,
+    ) -> None:
         if not pins:
-            pins = _IN1, _IN3, _IN2, _IN4
+            pins = DEFAULT_PINS
             
         count = len(pins)
         assert count == 4, 'only 4-pin steppers are supported'
@@ -23,26 +75,146 @@ class Stepper:
             seq = [[int(i == j) for j in range(count)] for i in range(count)]
         self.seq = seq
         
-        self.steps: int = 0
-        self.steps_per_revolution = steps_per_revolution
+        self.steps: int = -1
+        self.target: int | None = None
+        self.direction: Direction = direction
+        
+        self.steps_per_revolution = steps_per_revolution        
+        self.accel_steps: int = accel_steps
+        self.delay = delay
+        self._max_delay = max_delay
+        
+        self._worker: Thread | None = None
+        self._worker_keepalive: bool = False
+        self._worker_busy: bool = False
 
-    def step(self, *, cw: bool = False) -> None:
+    @property
+    def delay(self) -> int:
+        """The delay between steps, in seconds."""
+        return self._delay
+    
+    @delay.setter
+    def delay(self, value: float) -> None:
+        """Sets the delay between steps."""
+        if value < 0:
+            raise ValueError('Delay must be non-negative')
+        self._delay = value
+        
+    @property
+    def is_busy(self) -> bool:
+        """Returns whether the stepper motor is currently busy."""
+        return (
+            self._worker is not None 
+            and self._worker.is_alive() 
+            and self._worker_busy
+        )
+
+    def wait(self) -> None:
+        """Waits for the stepper to finish its current operation."""
+        while self.is_busy:
+            sleep(0.1)
+
+    def step(self) -> None:
         """Performs one single step."""
-        self.steps += -1 if cw else 1
+        self.steps += self.direction.value
         configuration = self.seq[self.steps % len(self.seq)]
         
         for pin, value in zip(self.pins, configuration):
             pin.value = value
             
-    def step_n(self, n: int, *, cw: bool = False, step_delay: float = 0.001) -> None:
-        """Performs n steps in the specified direction with the specified step delay."""
-        for _ in range(n):
-            self.step(cw=cw)
-            sleep(step_delay)
+    def start(self) -> None:
+        """Starts the stepper motor update loop in a separate thread."""
+        if self._worker is not None and self._worker.is_alive():
+            raise RuntimeError('Stepper motor is already running')
+        
+        self._worker_keepalive = True
+        self._worker = Thread(target=self.loop, daemon=True)
+        self._worker.start()
+        
+    def stop(self) -> None:
+        """Gracefully stops the stepper motor update loop."""
+        if self._worker is None or not self._worker.is_alive():
+            raise RuntimeError('Stepper motor is not running')
+        
+        self.target = None
+        self._worker_keepalive = False
+        self._worker.join()
+        self._worker = None
+        self.steps = -1
             
+    def loop(self) -> None:
+        """Continuously runs the motor until stopped."""
+        current_delay = self._max_delay
+        delay_step = (current_delay - self.delay) / self.accel_steps
+        
+        while self._worker_keepalive:
+            if self.target is None:
+                self._worker_busy = True
+                # Continuous mode
+                if current_delay > self.delay:
+                    current_delay -= delay_step
+                else:
+                    current_delay = self.delay
+                self.step()
+                sleep(current_delay)
+                continue
+                
+            # Target mode
+            remaining = self.target - self.steps
+            if remaining == 0:
+                self._worker_busy = False
+                sleep(self.delay)
+                continue
+            
+            self._worker_busy = True
+            self.direction = (
+                Direction.ccw if remaining > 0 else Direction.cw
+            )
+            remaining = abs(remaining)
+            
+            for i in range(remaining):
+                if i < self.accel_steps:
+                    current_delay -= delay_step
+                elif i > remaining - self.accel_steps:
+                    current_delay += delay_step
+                else:
+                    current_delay = self.delay
+                    
+                current_delay = max(self.delay, current_delay)
+                self.step()
+                sleep(current_delay)
+                
+    def __enter__(self) -> Stepper:
+        self.start()
+        return self
+    
+    def __exit__(self, *_) -> None:
+        self.stop()
+
+
+class Nema17Stepper(Stepper):
+    """A specific implementation of Stepper for a Nema 17 stepper motor."""
+    
+    def __init__(self, *pins: int, **kwargs) -> None:
+        super().__init__(
+            *pins,
+            seq=[
+                [1, 1, 0, 0],
+                [0, 1, 1, 1],
+                [0, 0, 1, 1],
+                [1, 0, 0, 1],
+            ],
+            steps_per_revolution=200,
+            **kwargs,
+        )
+
 
 if __name__ == '__main__':
-    # Example usage
-    stepper = Stepper(_IN1, _IN2, _IN3, _IN4)
+    from gpiozero import Device
+    from gpiozero.pins.rpigpio import RPiGPIOFactory
     
-    stepper.step_n(1000, cw=True)
+    Device.pin_factory = RPiGPIOFactory()
+    
+    with Nema17Stepper(*DEFAULT_PINS) as stepper:
+        stepper.target = 2000
+        stepper.wait()
