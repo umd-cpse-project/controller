@@ -60,7 +60,7 @@ class Stepper:
         seq: list[list[int]] | None = None,
         steps_per_revolution: int = 200,
         delay: float = 0.001,
-        accel_steps: int = 0,
+        accel_steps: int = 100,
         max_delay: float = 0.007,
         direction: Direction = Direction.ccw,
     ) -> None:
@@ -80,7 +80,7 @@ class Stepper:
         self.direction: Direction = direction
         
         self.steps_per_revolution = steps_per_revolution        
-        self.accel_steps: int = accel_steps
+        self.accel_steps: int = max(1, accel_steps)
         self.delay = delay
         self._max_delay = max_delay
         
