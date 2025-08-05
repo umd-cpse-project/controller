@@ -20,6 +20,8 @@ class Servo:
         self.channel = channel
         self._min_pulse = min_pulse
         self._max_pulse = max_pulse
+
+        self.prepare()
         self.inner = servo.Servo(self.PCA.channels[channel], min_pulse=min_pulse, max_pulse=max_pulse)
 
     @classmethod
