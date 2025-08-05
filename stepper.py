@@ -30,9 +30,9 @@ class Stepper:
     delay: float
         The starting delay between steps, in seconds.
     accel_steps: int
-        The number of steps to accelerate before reaching full speed.
+        The number of steps to speed up before reaching full speed.
     max_delay: float
-        The base delay to use when accelerating, in seconds.
+        The base delay to use when speeding up, in seconds.
     direction: Direction
         The direction the stepper motor should turn (for continuous mode).
     """
@@ -190,6 +190,9 @@ class Stepper:
     
     def __exit__(self, *_) -> None:
         self.stop()
+        
+    def __repr__(self) -> str:
+        return f'<Stepper pins={self.pins} steps={self.steps}>'
 
 
 class Nema17Stepper(Stepper):

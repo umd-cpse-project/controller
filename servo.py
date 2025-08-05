@@ -13,16 +13,26 @@ __all__ = ('Servo',)
 class Servo:
     """Interface over a single DS3235 270-degree servo motor controlled using PCA9685."""
 
+    __slots__ = ('channel', 'inner')
+
     I2C: ClassVar[busio.I2C | None] = None
     PCA: ClassVar[PCA9685 | None] = None
     
-    def __init__(self, channel: int, *, min_pulse: int = 500, max_pulse: int = 2500) -> None:
-        self.channel = channel
-        self._min_pulse = min_pulse
-        self._max_pulse = max_pulse
-
+    def __init__(
+        self,
+        channel: int,
+        *,
+        actuation_range: int = 270,
+        min_pulse: int = 500,
+        max_pulse: int = 2500,
+    ) -> None:
         self.prepare()
-        self.inner = servo.Servo(self.PCA.channels[channel], min_pulse=min_pulse, max_pulse=max_pulse)
+        self.channel = channel
+        self.inner = servo.Servo(
+            self.PCA.channels[channel],
+            actuation_range=actuation_range,
+            min_pulse=min_pulse, max_pulse=max_pulse,
+        )
 
     @classmethod
     def prepare(cls) -> None:
@@ -36,16 +46,18 @@ class Servo:
     @property
     def angle(self) -> float | None:
         """Get the current angle of the servo, normalized between 0 and 270 degrees."""
-        if angle := self.inner.angle:
-            return angle / 180 * 270
-        return None    
+        return self.inner.angle
     
     @angle.setter
     def angle(self, value: float) -> None:
         """Set the angle of the servo, normalized between 0 and 270 degrees."""
-        if not (0 <= value <= 270):
-            raise ValueError('Angle must be between 0 and 270 degrees')
-        self.inner.angle = value / 270 * 180
+        self.inner.angle = value
 
     def __repr__(self) -> str:
         return f'Servo(channel={self.channel}, angle={self.angle})'
+
+
+if __name__ == '__main__':
+    servo_motor = Servo(0)
+    servo_motor.angle = 90
+    print(servo_motor.angle)

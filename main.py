@@ -125,7 +125,7 @@ class WebcamMQTTPublisher:
         self.last_sort_target: Category | None = None
 
         self.display = LCDDisplay(addr=0x27, backlight_enabled=True)
-        self.button = Button(17)
+        self.button = Button(int(getenv('MANUAL_CAPTURE_BUTTON_PIN', 17)))
         self.button.when_pressed = self.process_image  # Trigger image capture on button press
 
     def setup_mqtt(self) -> bool:
