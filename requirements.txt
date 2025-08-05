@@ -2,7 +2,10 @@ opencv-python
 paho-mqtt
 python-dotenv
 msgpack
-RPi.GPIO
 gpiozero
 smbus2
+adafruit-circuitpython-pca9685
+adafruit-circuitpython-motor
+adafruit-blinka
+RPi.GPIO
 rpi-lgpio

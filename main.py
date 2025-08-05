@@ -15,6 +15,8 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from paho.mqtt.client import Client as MQTTClient, MQTTMessage
 
+from webcam import Webcam
+
 try:
     import RPi.GPIO
     IS_RPI = True
@@ -36,13 +38,6 @@ load_dotenv()
 
 MQTT_HOST = getenv('MQTT_HOST', 'localhost')
 MQTT_PORT = int(getenv('MQTT_PORT', 1883))
-
-WEBCAM_INDEX = 0  # Usually 0 for the first camera
-CAPTURE_INTERVAL = 5  # Seconds between captures
-IMAGE_QUALITY = 85  # JPEG quality (1-100)
-RESIZE_WIDTH = 360  # Resize image width (None to keep original)
-RESIZE_HEIGHT = 270  # Resize image height (None to keep original)
-CAP_WEBCAM_FPS = 5  # Frames per second for webcam capture
 
 Device.pin_factory = RPiGPIOFactory()
 
@@ -104,33 +99,6 @@ class CategorizationResponse(NamedTuple):
         )
 
 
-class Webcam(Thread):
-    def __init__(self, camera, *, thread_name='webcam-thread'):
-        self._camera = camera
-        self._last_frame = None
-        self._run: bool = True
-        super(Webcam, self).__init__(name=thread_name)
-        self.start()
-
-    def run(self):
-        while self._run:
-            ret, self._last_frame = self._camera.read()
-            
-    def read(self) -> tuple[bool, cv2.Mat]:
-        if self._last_frame is None:
-            return self._camera.read()
-        return True, self._last_frame
-    
-    def release(self) -> None:
-        """Release the camera resources"""
-        self._run = False
-        if self._camera:
-            self._camera.release()
-            logger.info("Webcam released")
-        else:
-            logger.warning("No webcam to release")
-
-
 class SystemState(Enum):
     idle = 0
     processing = 1
@@ -146,7 +114,7 @@ class SystemState(Enum):
 
 class WebcamMQTTPublisher:
     def __init__(self, *, keepalive: float = 8.0) -> None:
-        self.webcam: Webcam = None
+        self.webcam: Webcam = Webcam()
         self.mqtt_client: MQTTClient = None
         self.is_running: bool = False
         self._keepalive: float = keepalive
@@ -159,26 +127,6 @@ class WebcamMQTTPublisher:
         self.display = LCDDisplay(addr=0x27, backlight_enabled=True)
         self.button = Button(17)
         self.button.when_pressed = self.process_image  # Trigger image capture on button press
-
-    def setup_camera(self) -> bool:
-        """Initialize the webcam"""
-        try:
-            camera = cv2.VideoCapture(WEBCAM_INDEX)
-            if not camera.isOpened():
-                logger.error(f"Failed to open camera at index {WEBCAM_INDEX}")
-                return False
-
-            # Set camera properties for better performance
-            camera.set(cv2.CAP_PROP_FRAME_WIDTH, RESIZE_WIDTH)
-            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, RESIZE_WIDTH)
-            camera.set(cv2.CAP_PROP_FPS, CAP_WEBCAM_FPS)
-            self.webcam = Webcam(camera)
-
-            logger.info("Camera initialized successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Error setting up camera: {e}")
-            return False
 
     def setup_mqtt(self) -> bool:
         """Initialize MQTT client"""
@@ -243,29 +191,6 @@ class WebcamMQTTPublisher:
         """Callback for when message is published"""
         logger.debug(f"Message {mid} published successfully")
 
-    def capture_image(self) -> bytes | None:
-        """Capture an image from the webcam"""
-        try:
-            ret, frame = self.webcam.read()
-            if not ret:
-                logger.error("Failed to capture image from camera")
-                return None
-
-            height, width, _ = frame.shape
-            # Resize image if specified
-            if RESIZE_WIDTH and RESIZE_HEIGHT and RESIZE_WIDTH != width and RESIZE_HEIGHT != height:
-                frame = cv2.resize(frame, (RESIZE_WIDTH, RESIZE_HEIGHT))
-
-            # Encode image as JPEG
-            encode_params = [cv2.IMWRITE_JPEG_QUALITY, IMAGE_QUALITY]
-            _, buffer = cv2.imencode('.jpg', frame, encode_params)
-
-            return buffer.tobytes()
-
-        except Exception as e:
-            logger.error(f"Error capturing image: {e}")
-            return None
-
     def publish_image(self, image_data: bytes) -> bool:
         """Publish image to MQTT broker for processing"""
         try:
@@ -284,7 +209,7 @@ class WebcamMQTTPublisher:
             return False
 
     def process_image(self) -> None:
-        image_data = self.capture_image()
+        image_data = self.webcam.capture()
         if image_data:
             # Publish to MQTT
             self.publish_image(image_data)
@@ -350,7 +275,7 @@ class WebcamMQTTPublisher:
         logger.info("Starting Webcam to MQTT Publisher")
 
         # Initialize camera and MQTT
-        if not self.setup_camera():
+        if not self.webcam.prepare():
             logger.error("Failed to setup camera. Exiting.")
             self.display.write('Failed camera setup, restart!')
             return
@@ -385,7 +310,7 @@ class WebcamMQTTPublisher:
 
         self.is_running = False
 
-        if self.webcam:
+        if self.webcam.is_alive():
             self.webcam.release()
 
         if self.mqtt_client:
