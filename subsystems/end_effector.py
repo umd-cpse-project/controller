@@ -3,7 +3,7 @@ from __future__ import annotations
 from devices import Servo
 
 
-class EndEffector:
+class Differential:
     """Abstraction over a differential-driven 2DOF end effector (pitch and roll).
     
     Parameters
@@ -64,6 +64,68 @@ class EndEffector:
     def roll(self, value: float) -> None:
         """Set the roll of the end effector."""
         self.set(roll=value)
+
+
+class EndEffector:
+    """Abstraction over a 3DOF end effector (pitch, roll, and yaw), where pitch and roll are controlled by a 
+    differential motor pair, and yaw is controlled by a single servo.
+    
+    Parameters
+    ----------
+    differential: Differential
+        The differential motor pair that controls the pitch and roll of the end effector.
+    yaw: Servo
+        The servo that controls the yaw of the end effector.
+    """
+    
+    __slots__ = ('_differential', '_yaw', '_yaw_neutral')
+
+    def __init__(self, differential: Differential, yaw: Servo) -> None:
+        self._differential: Differential = differential
+        self._yaw: Servo = yaw
+        self._yaw_neutral: float = yaw.angle
+
+    def set(self, *, pitch: float | None = None, roll: float | None = None, yaw: float | None = None) -> None:
+        """Set the pitch, roll, and yaw of the end effector."""
+        if pitch is not None or roll is not None:
+            self._differential.set(pitch=pitch, roll=roll)
+        if yaw is not None:
+            self._yaw.angle = self._yaw_neutral + yaw
+            
+    def reset(self) -> None:
+        """Reset the end effector to its neutral position."""
+        self._differential.reset()
+        self._yaw.angle = self._yaw_neutral
+        
+    @property
+    def pitch(self) -> float:
+        """The current pitch of the end effector."""
+        return self._differential.pitch
+    
+    @pitch.setter
+    def pitch(self, value: float) -> None:
+        """Set the pitch of the end effector."""
+        self._differential.pitch = value
+        
+    @property
+    def roll(self) -> float:
+        """The current roll of the end effector."""
+        return self._differential.roll
+    
+    @roll.setter
+    def roll(self, value: float) -> None:
+        """Set the roll of the end effector."""
+        self._differential.roll = value
+        
+    @property
+    def yaw(self) -> float:
+        """The current yaw of the end effector."""
+        return self._yaw.angle - self._yaw_neutral
+    
+    @yaw.setter
+    def yaw(self, value: float) -> None:
+        """Set the yaw of the end effector."""
+        self._yaw.angle = self._yaw_neutral + value
 
 
 if __name__ == '__main__':
