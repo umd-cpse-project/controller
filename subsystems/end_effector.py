@@ -35,7 +35,7 @@ class Differential:
         roll = roll if pitch is not None else self._last_roll
         
         self._left_servo.angle = l + pitch - roll
-        self._right_servo.angle = r + pitch - roll
+        self._right_servo.angle = r + pitch + roll
         self._last_pitch = pitch
         self._last_roll = roll
         
