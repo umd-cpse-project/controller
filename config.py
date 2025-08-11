@@ -18,6 +18,6 @@ SYSTEM = System(
             left_servo=Servo(0, angle=135.0),
             right_servo=Servo(1, reverse=True, angle=135.0),
         ),
-        yaw_servo=Servo(2, angle=90.0)  # Yaw servo
+        yaw_servo=Servo(2, angle=135.0)  # Yaw servo
     ),
 )
