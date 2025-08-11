@@ -74,16 +74,16 @@ class EndEffector:
     ----------
     differential: Differential
         The differential motor pair that controls the pitch and roll of the end effector.
-    yaw: Servo
+    yaw_servo: Servo
         The servo that controls the yaw of the end effector.
     """
     
     __slots__ = ('_differential', '_yaw', '_yaw_neutral')
 
-    def __init__(self, differential: Differential, yaw: Servo) -> None:
+    def __init__(self, differential: Differential, yaw_servo: Servo) -> None:
         self._differential: Differential = differential
-        self._yaw: Servo = yaw
-        self._yaw_neutral: float = yaw.angle
+        self._yaw: Servo = yaw_servo
+        self._yaw_neutral: float = yaw_servo.angle
 
     def set(self, *, pitch: float | None = None, roll: float | None = None, yaw: float | None = None) -> None:
         """Set the pitch, roll, and yaw of the end effector."""

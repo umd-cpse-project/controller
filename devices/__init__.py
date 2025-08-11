@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING
 
-from .stepper import Direction as StepperDirection
 from .webcam import Webcam
 
 try:
@@ -16,7 +15,7 @@ if TYPE_CHECKING or IS_RPI:
 
     from .lcd_display import LCDDisplay
     from .servo import Servo
-    from .stepper import Stepper, Nema17Stepper
+    from .stepper import StepperDirection, Stepper, Nema17Stepper
 else:
     exec('from .mock_gpio import *')
 
@@ -29,6 +28,6 @@ __all__ = (
     'Webcam',
     'Servo',
     'Stepper',
-    'Nema17Stepper',
     'StepperDirection',
+    'Nema17Stepper',
 )

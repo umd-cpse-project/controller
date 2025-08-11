@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from threading import Thread
 
-from .stepper import Direction
-
-__all__ = ('Button', 'Device', 'RPiGPIOFactory', 'LCDDisplay', 'Stepper', 'Nema17Stepper', 'Servo')
+__all__ = (
+    'Button', 'Device', 'RPiGPIOFactory', 'LCDDisplay',
+    'StepperDirection', 'Stepper', 'Nema17Stepper', 'Servo',
+)
 
 
 class Button:
@@ -63,6 +65,11 @@ class OutputDevice:
         self._value = val
     
 
+class StepperDirection(Enum):
+    cw = 1  # Clockwise
+    ccw = -1  # Counter-clockwise
+
+
 class Stepper:
     def __init__(
         self,
@@ -72,14 +79,14 @@ class Stepper:
         delay: float = 0.001,
         accel_steps: int = 100,
         max_delay: float = 0.007,
-        direction: Direction = Direction.ccw,
+        direction: StepperDirection = StepperDirection.ccw,
     ) -> None:
         self.pins: list[OutputDevice] = [OutputDevice(pin) for pin in pins]
         self.seq = seq
 
         self.steps: int = -1
         self.target: int | None = None
-        self.direction: Direction = direction
+        self.direction: StepperDirection = direction
 
         self.steps_per_revolution = steps_per_revolution
         self.accel_steps: int = max(1, accel_steps)

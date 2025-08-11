@@ -16,4 +16,3 @@ Ensure the following environment variables are set:
 - `MQTT_PASSWORD` (default: no username/password)
 - `AUTHORIZATION_TOKEN`
 - `GPIOZERO_PIN_FACTORY`
-- `MANUAL_CAPTURE_BUTTON_PIN` (default: `17`)

@@ -15,7 +15,7 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from paho.mqtt.client import Client as MQTTClient, MQTTMessage
 
-from devices import Webcam, LCDDisplay, Button
+from devices import Webcam
 
 if TYPE_CHECKING:
     from typing import Self
@@ -100,6 +100,8 @@ class WebcamMQTTPublisher:
     """Main class for handling webcam image capture and MQTT communication."""
     
     def __init__(self, *, keepalive: float = 8.0) -> None:
+        from config import LCD_DISPLAY, MANUAL_CAPTURE_BUTTON
+        
         self.webcam: Webcam = Webcam()
         self.mqtt_client: MQTTClient = None
         self.is_running: bool = False
@@ -110,8 +112,8 @@ class WebcamMQTTPublisher:
         self.last_sort_request: datetime.datetime | None = None
         self.last_sort_target: Category | None = None
 
-        self.display = LCDDisplay(addr=0x27, backlight_enabled=True)
-        self.button = Button(17)
+        self.display = LCD_DISPLAY
+        self.button = MANUAL_CAPTURE_BUTTON
         self.button.when_pressed = self.process_image  # Trigger image capture on button press
 
     def setup_mqtt(self) -> bool:

@@ -7,12 +7,12 @@ from time import sleep
 from gpiozero import OutputDevice
 from gpiozero.pins.rpigpio import RPiGPIOFactory
 
-__all__ = ('Stepper', 'Direction')
+__all__ = ('Stepper', 'StepperDirection')
 
 STEPPER_PIN_FACTORY = RPiGPIOFactory()
 
 
-class Direction(Enum):
+class StepperDirection(Enum):
     cw = -1  # Clockwise
     ccw = 1  # Counter-clockwise
 
@@ -34,7 +34,7 @@ class Stepper:
         The number of steps to speed up before reaching full speed.
     max_delay: float
         The base delay to use when speeding up, in seconds.
-    direction: Direction
+    direction: StepperDirection
         The direction the stepper motor should turn (for continuous mode).
     """
     
@@ -63,7 +63,7 @@ class Stepper:
         delay: float = 0.001,
         accel_steps: int = 100,
         max_delay: float = 0.007,
-        direction: Direction = Direction.ccw,
+        direction: StepperDirection = StepperDirection.ccw,
     ) -> None:
         count = len(pins)
         assert count == 4, 'only 4-pin steppers are supported'
@@ -77,7 +77,7 @@ class Stepper:
         
         self.steps: int = -1
         self.target: int | None = None
-        self.direction: Direction = direction
+        self.direction: StepperDirection = direction
         
         self.steps_per_revolution = steps_per_revolution        
         self.accel_steps: int = max(1, accel_steps)
@@ -168,7 +168,7 @@ class Stepper:
             
             self._worker_busy = True
             self.direction = (
-                Direction.ccw if remaining > 0 else Direction.cw
+                StepperDirection.ccw if remaining > 0 else StepperDirection.cw
             )
             remaining = abs(remaining)
             
