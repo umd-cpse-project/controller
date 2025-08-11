@@ -25,7 +25,7 @@ class Servo:
         The maximum pulse width in microseconds for the PWM-controlled servo. Default is 2500 us.
     """
 
-    __slots__ = ('channel', 'inner')
+    __slots__ = ('channel', 'inner', '_reversed')
 
     I2C: ClassVar[busio.I2C | None] = None
     PCA: ClassVar[PCA9685 | None] = None
@@ -37,14 +37,20 @@ class Servo:
         actuation_range: int = 270,
         min_pulse: int = 500,
         max_pulse: int = 2500,
+        angle: float | None = None,
+        reverse: bool = False,
     ) -> None:
         self.prepare()
         self.channel = channel
+        self._reversed = reverse
+            
         self.inner = servo.Servo(
             self.PCA.channels[channel],
             actuation_range=actuation_range,
             min_pulse=min_pulse, max_pulse=max_pulse,
         )
+        if angle is not None:
+            self.angle = angle
 
     @classmethod
     def prepare(cls) -> None:
@@ -58,11 +64,15 @@ class Servo:
     @property
     def angle(self) -> float | None:
         """Get the current angle of the servo, normalized between 0 and 270 degrees."""
+        if self._reversed:
+            return self.inner.actuation_range - self.inner.angle
         return self.inner.angle
     
     @angle.setter
     def angle(self, value: float) -> None:
         """Set the angle of the servo, normalized between 0 and 270 degrees."""
+        if self._reversed:
+            value = self.inner.actuation_range - value
         self.inner.angle = value
 
     def __repr__(self) -> str:
