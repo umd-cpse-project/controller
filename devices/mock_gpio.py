@@ -1,8 +1,10 @@
+"""Mock GPIO devices for simulating controller messages through MQTT without needing a GPIO connection."""
+
 from __future__ import annotations
 
 from threading import Thread
 
-from stepper import Direction
+from .stepper import Direction
 
 __all__ = ('Button', 'Device', 'RPiGPIOFactory', 'LCDDisplay', 'Stepper', 'Nema17Stepper', 'Servo')
 

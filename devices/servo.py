@@ -11,7 +11,19 @@ __all__ = ('Servo',)
 
 
 class Servo:
-    """Interface over a single DS3235 270-degree servo motor controlled using PCA9685."""
+    """Interface over a single DS3235 270-degree servo motor controlled using PCA9685.
+    
+    Parameters
+    ----------
+    channel: int
+        The channel number of the servo on the PCA9685 board (0-15).
+    actuation_range: int
+        The range of motion for the servo in degrees. Default is 270 degrees.
+    min_pulse: int
+        The minimum pulse width in microseconds for the PWM-controlled servo. Default is 500 us.
+    max_pulse: int
+        The maximum pulse width in microseconds for the PWM-controlled servo. Default is 2500 us.
+    """
 
     __slots__ = ('channel', 'inner')
 

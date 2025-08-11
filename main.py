@@ -15,31 +15,15 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from paho.mqtt.client import Client as MQTTClient, MQTTMessage
 
-from webcam import Webcam
-
-try:
-    import RPi.GPIO
-    IS_RPI = True
-except ImportError:
-    print('Note: running in non-RPi environment!')
-    IS_RPI = False
+from devices import Webcam, LCDDisplay, Button
 
 if TYPE_CHECKING:
     from typing import Self
-
-if TYPE_CHECKING or IS_RPI:
-    from gpiozero import Button, Device
-    from gpiozero.pins.rpigpio import RPiGPIOFactory
-    from lcd_display import LCDDisplay
-else:
-    from mock_gpio import Button, Device, RPiGPIOFactory, LCDDisplay
 
 load_dotenv()
 
 MQTT_HOST = getenv('MQTT_HOST', 'localhost')
 MQTT_PORT = int(getenv('MQTT_PORT', 1883))
-
-Device.pin_factory = RPiGPIOFactory()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -113,6 +97,8 @@ class SystemState(Enum):
 
 
 class WebcamMQTTPublisher:
+    """Main class for handling webcam image capture and MQTT communication."""
+    
     def __init__(self, *, keepalive: float = 8.0) -> None:
         self.webcam: Webcam = Webcam()
         self.mqtt_client: MQTTClient = None
@@ -125,7 +111,7 @@ class WebcamMQTTPublisher:
         self.last_sort_target: Category | None = None
 
         self.display = LCDDisplay(addr=0x27, backlight_enabled=True)
-        self.button = Button(int(getenv('MANUAL_CAPTURE_BUTTON_PIN', 17)))
+        self.button = Button(17)
         self.button.when_pressed = self.process_image  # Trigger image capture on button press
 
     def setup_mqtt(self) -> bool:

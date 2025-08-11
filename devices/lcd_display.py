@@ -8,7 +8,15 @@ log = getLogger(__name__)
 
 
 class LCDDisplay:
-    """A class to control a 16x2 LCD display using I2C protocol."""
+    """Controls a 16x2 LCD display using I2C protocol.
+    
+    Parameters
+    ----------
+    addr: int
+        The I2C address of the LCD display (default is 0x27).
+    backlight_enabled: bool
+        Whether the backlight is enabled (default is True).
+    """
     
     def __init__(self, addr: int = 0x27, *, backlight_enabled: bool = True):
         self.addr: int = addr
@@ -118,7 +126,17 @@ class LCDDisplay:
         self._write(text, offset_left, 1)
         
     def write(self, text: str, bottom_text: str | None = None, *, offset_left: int = 0) -> None:
-        """Write text to the LCD display, wrapping if necessary."""
+        """Write text to the LCD display, wrapping if necessary.
+        
+        Parameters
+        ----------
+        text: str
+            The main text to display on the top line.
+        bottom_text: str | None
+            Optional text to display on the bottom line.
+        offset_left: int
+            The number of characters to offset the text from the left (default is 0).
+        """
         self.clear()
         width = 16 - offset_left
         lines = wrap(text, width)
