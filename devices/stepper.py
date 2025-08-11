@@ -5,10 +5,11 @@ from threading import Thread
 from time import sleep
 
 from gpiozero import OutputDevice
+from gpiozero.pins.rpigpio import RPiGPIOFactory
 
 __all__ = ('Stepper', 'Direction')
 
-DEFAULT_PINS = 23, 24, 25, 12
+STEPPER_PIN_FACTORY = RPiGPIOFactory()
 
 
 class Direction(Enum):
@@ -64,12 +65,11 @@ class Stepper:
         max_delay: float = 0.007,
         direction: Direction = Direction.ccw,
     ) -> None:
-        if not pins:
-            pins = DEFAULT_PINS
-            
         count = len(pins)
         assert count == 4, 'only 4-pin steppers are supported'
-        self.pins: list[OutputDevice] = [OutputDevice(pin) for pin in pins]
+        self.pins: list[OutputDevice] = [
+            OutputDevice(pin, pin_factory=STEPPER_PIN_FACTORY) for pin in pins
+        ]
 
         if seq is None:
             seq = [[int(i == j) for j in range(count)] for i in range(count)]
@@ -213,11 +213,6 @@ class Nema17Stepper(Stepper):
 
 
 if __name__ == '__main__':
-    from gpiozero import Device
-    from gpiozero.pins.rpigpio import RPiGPIOFactory
-    
-    Device.pin_factory = RPiGPIOFactory()
-    
-    with Nema17Stepper(*DEFAULT_PINS) as stepper:
+    with Nema17Stepper(23, 24, 25, 12) as stepper:
         stepper.target = 2000
         stepper.wait()
