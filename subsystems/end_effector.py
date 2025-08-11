@@ -65,8 +65,8 @@ class EndEffector:
         angle_a = self._clamp_servo(self.neutral_a + pitch + roll)
         angle_b = self._clamp_servo(self.neutral_b + pitch - roll)
 
-        self.servo_a.angle = angle_a
-        self.servo_b.angle = angle_b
+        self._front_servo.angle = angle_a
+        self._back_servo.angle = angle_b
 
     @property
     def pitch(self) -> float:
