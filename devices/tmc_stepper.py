@@ -84,9 +84,10 @@ class TMCStepper:
         """Gets the target position of the stepper motor in steps."""
         return self._motion_control._target_pos
 
-    def set_target_position(self, position: int) -> None:
+    @target.setter
+    def target(self, position: int) -> None:
         """Sets the target position for the stepper motor such that it runs async."""
-        return self._motion_control.run_to_position_steps_threaded(position, MovementAbsRel.ABSOLUTE)
+        self._motion_control.run_to_position_steps_threaded(position, MovementAbsRel.ABSOLUTE)
 
     @property
     def speed(self) -> int:
