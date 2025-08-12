@@ -7,5 +7,7 @@ smbus2
 adafruit-circuitpython-pca9685
 adafruit-circuitpython-motor
 adafruit-blinka
+PyTmcStepper
+pyserial
 RPi.GPIO
 rpi-lgpio

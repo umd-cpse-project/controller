@@ -5,6 +5,8 @@ Controller implementation for the Raspberry Pi.
 
 - Python 3.11+
 - `pigpio` (i.e., run `sudo pigpiod`).
+- enable the I2C interface on the Raspberry Pi.
+- enable the serial interface on the Raspberry Pi.
 
 ## Configuration
 
@@ -16,3 +18,5 @@ Ensure the following environment variables are set:
 - `MQTT_PASSWORD` (default: no username/password)
 - `AUTHORIZATION_TOKEN`
 - `GPIOZERO_PIN_FACTORY`
+- `UART_PORT` (default: `/dev/serial0`)
+  - if using RPi 5, set this to `/dev/ttyAMA0` instead

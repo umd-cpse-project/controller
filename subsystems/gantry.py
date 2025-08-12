@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from devices import Nema17Stepper, StepperDirection
+from devices import TMCStepper
 
 __all__ = ('Gantry',)
 
@@ -10,9 +10,9 @@ class Gantry:
     
     Parameters
     ----------
-    left: Nema17Stepper
+    left: TMCStepper
         The left stepper motor driver ("motor A")
-    right: Nema17Stepper
+    right: TMCStepper
         The right stepper motor driver ("motor B")
     position: tuple[float, float]
         The initial position of the gantry in (x, y) coordinates when (a, b) = (0, 0).
@@ -22,14 +22,34 @@ class Gantry:
         Defaults to ``(0.0, 0.0)``.
     """
 
-    __slots__ = ('_left_motor', '_right_motor')
+    __slots__ = ('_left', '_right')
     
     def __init__(
         self, 
-        left: Nema17Stepper, 
-        right: Nema17Stepper, 
-        *, 
-        position: tuple[float, float] = (0.0, 0.0),
+        left: TMCStepper, 
+        right: TMCStepper,
     ) -> None:
-        self._left_motor = left
-        self._right_motor = right
+        self._left = left
+        self._right = right
+
+    def enable(self) -> None:
+        """Enable the gantry motors."""
+        self._left.enable()
+        self._right.enable()
+        
+    def disable(self) -> None:
+        """Disable the gantry motors."""
+        self._left.disable()
+        self._right.disable()
+        
+    def move_to_position(self, x: float, y: float) -> None:
+        """Move the gantry to the specified (x, y) position, relative to the initially specified position.
+        
+        Parameters
+        ----------
+        x: float
+            The target x-coordinate in inches.
+        y: float
+            The target y-coordinate in inches.
+        """
+        pass

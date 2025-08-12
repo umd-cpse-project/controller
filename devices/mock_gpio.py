@@ -8,6 +8,7 @@ from threading import Thread
 __all__ = (
     'Button', 'Device', 'RPiGPIOFactory', 'LCDDisplay',
     'StepperDirection', 'Stepper', 'Nema17Stepper', 'Servo',
+    'TMCStepper',
 )
 
 
@@ -169,3 +170,17 @@ class Servo:
     def angle(self, value: float) -> None:
         if not (0 <= value <= 270):
             raise ValueError('Angle must be between 0 and 270 degrees')
+
+
+class TMCStepper:
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
+    def enable(self) -> None:
+        pass
+
+    def disable(self) -> None:
+        pass
+
+    def run_to_position(self, position: int) -> None:
+        pass

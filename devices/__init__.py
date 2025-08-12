@@ -16,6 +16,7 @@ if TYPE_CHECKING or IS_RPI:
     from .lcd_display import LCDDisplay
     from .servo import Servo
     from .stepper import StepperDirection, Stepper, Nema17Stepper
+    from .tmc_stepper import TMCStepper
 else:
     exec('from .mock_gpio import *')
 
@@ -30,4 +31,5 @@ __all__ = (
     'Stepper',
     'StepperDirection',
     'Nema17Stepper',
+    'TMCStepper',
 )
