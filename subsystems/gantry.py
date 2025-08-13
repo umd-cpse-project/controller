@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from math import pi
+
 from devices import TMCStepper
 
 __all__ = ('Gantry',)
@@ -14,8 +16,8 @@ class Gantry:
         The left stepper motor driver ("motor A")
     right: TMCStepper
         The right stepper motor driver ("motor B")
-    scale: float
-        The number of steps per inch.
+    revolutions_per_inch: float
+        The number of revolutions of the stepper motor needed to achieve one inch of movement in the end-effector.
     position: tuple[float, float]
         The initial position of the gantry in (x, y) coordinates when (a, b) = (0, 0).
         This is used to set the starting/reference point of the gantry.
@@ -24,20 +26,33 @@ class Gantry:
         Defaults to ``(0.0, 0.0)``.
     """
 
-    __slots__ = ('_left', '_right', '_scale', '_zero_position')
+    __slots__ = ('_left', '_right', '_zero_position', '_steps_per_inch')
     
     def __init__(
         self, 
         left: TMCStepper, 
         right: TMCStepper,
         *,
-        scale: float = 1.0,  # steps per inch
+        revolutions_per_inch: float = 2.54 / 2.4 / pi,  # 1 / (24mm diameter pulley -> inches of circumference / revolution)
         position: tuple[float, float] = (0.0, 0.0),
     ) -> None:
         self._left = left
         self._right = right
-        self._scale = scale
         self._zero_position = self._cartesian_to_steps(*position)
+        self._steps_per_inch = (
+            revolutions_per_inch * left.steps_per_revolution,
+            revolutions_per_inch * right.steps_per_revolution,
+        )
+
+    @property
+    def left(self) -> TMCStepper:
+        """The left stepper motor driver."""
+        return self._left
+    
+    @property
+    def right(self) -> TMCStepper:
+        """The right stepper motor driver."""
+        return self._right
 
     def enable(self) -> None:
         """Enable the gantry motors."""
@@ -55,10 +70,16 @@ class Gantry:
         self._right.stop()
 
     def _cartesian_to_steps(self, x: float, y: float) -> tuple[int, int]:
-        return y - x, y + x
+        ox, oy = self._zero_position
+        x, y = x - ox, y - oy
+        l, r = self._steps_per_inch
+        return round(l * (y - x)), round(r * (y + x))
     
     def _steps_to_cartesian(self, left: int, right: int) -> tuple[float, float]:
-        return (right - left) / 2, (left + right) / 2
+        ox, oy = self._zero_position
+        l, r = self._steps_per_inch
+        x, y = (right - left) / 2, (left + right) / 2
+        return x / l + ox, y / r + oy
         
     def wait(self) -> None:
         """Wait for the gantry motors to finish moving to their targets."""

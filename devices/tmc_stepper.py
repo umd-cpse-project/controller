@@ -27,7 +27,12 @@ class TMCStepper:
     current: int
         The current in mA to draw from the TMC.
         Defaults to 1500 mA.
+    steps_per_revolution: int
+        The number of full steps per revolution for the stepper motor.
+        Defaults to 200 steps (1.8 degrees per step).
     """
+    
+    __slots__ = ('_tmc', 'pulley_circumference')
 
     def __init__(
         self,
@@ -38,6 +43,7 @@ class TMCStepper:
         uart: str = '/dev/serial0',
         reverse: bool = False,
         current: int = 1500,
+        steps_per_revolution: int = 200,
     ) -> None:
         self._tmc: Tmc2209 = Tmc2209(
             TmcEnableControlPin(control_pin),
@@ -52,6 +58,7 @@ class TMCStepper:
         self._tmc.set_internal_rsense(False)
         self._tmc.acceleration_fullstep = 1000
         self._tmc.max_speed_fullstep = 100
+        self._tmc.fullsteps_per_rev = steps_per_revolution
         self.enable()
 
     def enable(self) -> None:
@@ -65,7 +72,7 @@ class TMCStepper:
     def run_to_position(self, position: int) -> None:
         """Moves the stepper motor to an absolute position in steps, blocking the main thread."""
         self._tmc.run_to_position_steps(position)
-        
+
     def wait(self) -> None:
         """Waits for the stepper motor to finish its current operation."""
         self._motion_control.wait_for_movement_finished_threaded()
@@ -104,6 +111,11 @@ class TMCStepper:
         """Sets the target speed of the stepper motor, in fullsteps/sec."""
         self._motion_control.max_speed_fullstep = speed
 
+    @property
+    def steps_per_revolution(self) -> int:
+        """Returns the number of full steps per revolution."""
+        return self._motion_control.fullsteps_per_rev
+    
     def stop(self) -> None:
         """Stops motion control of the stepper motor."""
         self._motion_control.stop()

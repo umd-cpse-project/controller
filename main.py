@@ -15,7 +15,7 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from paho.mqtt.client import Client as MQTTClient, MQTTMessage
 
-from config import get_manual_capture_button, get_lcd_display
+from config import get_manual_capture_button, get_lcd_display, get_system
 from devices import Webcam
 
 if TYPE_CHECKING:
@@ -114,6 +114,7 @@ class WebcamMQTTPublisher:
         self.display = get_lcd_display()
         self.button = get_manual_capture_button()
         self.button.when_pressed = self.process_image  # Trigger image capture on button press
+        self.system = get_system()
 
     def setup_mqtt(self) -> bool:
         """Initialize MQTT client"""
@@ -208,10 +209,16 @@ class WebcamMQTTPublisher:
         self.display.clear()
         self.display.write_top('Category:')
         self.display.write_bottom(target.name, offset_left=16 - len(target.name))
+        
+        # convert from (0, 0) at top left to (0, 0) at bottom center:
+        GANTRY_HEIGHT = 18  # inches
+        pos = target.x, GANTRY_HEIGHT - target.y
 
-        # TODO: trigger actual sorting mechanism here
-        time.sleep(2)  # Simulate some physical sorting time
+        logger.info(f"Running gantry to position {pos}")
+        self.system.process_sort_request(*pos)
+        
         self.set_idle()
+        self.system.gantry.set_target(0, 0)
 
     def set_idle(self) -> None:
         self.state = SystemState.idle
@@ -296,6 +303,7 @@ class WebcamMQTTPublisher:
         logger.info("Cleaning up resources...")
 
         self.is_running = False
+        self.system.release()
 
         if self.webcam.is_alive():
             self.webcam.release()
