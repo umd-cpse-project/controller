@@ -14,6 +14,8 @@ class Gantry:
         The left stepper motor driver ("motor A")
     right: TMCStepper
         The right stepper motor driver ("motor B")
+    scale: float
+        The number of steps per inch.
     position: tuple[float, float]
         The initial position of the gantry in (x, y) coordinates when (a, b) = (0, 0).
         This is used to set the starting/reference point of the gantry.
@@ -22,15 +24,20 @@ class Gantry:
         Defaults to ``(0.0, 0.0)``.
     """
 
-    __slots__ = ('_left', '_right')
+    __slots__ = ('_left', '_right', '_scale', '_zero_position')
     
     def __init__(
         self, 
         left: TMCStepper, 
         right: TMCStepper,
+        *,
+        scale: float = 1.0,  # steps per inch
+        position: tuple[float, float] = (0.0, 0.0),
     ) -> None:
         self._left = left
         self._right = right
+        self._scale = scale
+        self._zero_position = self._cartesian_to_steps(*position)
 
     def enable(self) -> None:
         """Enable the gantry motors."""

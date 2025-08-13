@@ -107,3 +107,10 @@ class TMCStepper:
     def stop(self) -> None:
         """Stops motion control of the stepper motor."""
         self._motion_control.stop()
+
+    def __enter__(self) -> TMCStepper:
+        self.enable()
+        return self
+
+    def __exit__(self, *_) -> None:
+        self.disable()

@@ -39,7 +39,7 @@ def get_system() -> System:
             right=TMCStepper(
                 control_pin=5, step_pin=6, dir_pin=13,
                 uart=uart,
-                current=1400,
+                current=1600,
             ),
         ),
     )
