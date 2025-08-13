@@ -41,6 +41,11 @@ class Gantry:
         """Disable the gantry motors."""
         self._left.disable()
         self._right.disable()
+    
+    def stop(self) -> None:
+        """Immediately stops the gantry motors."""
+        self._left.stop()
+        self._right.stop()
 
     def _cartesian_to_steps(self, x: float, y: float) -> tuple[int, int]:
         return y - x, y + x
