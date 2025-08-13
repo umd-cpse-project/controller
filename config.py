@@ -16,7 +16,7 @@ def get_lcd_display() -> LCDDisplay:
 
 def get_system() -> System:    
     uart = getenv('TMC_UART', '/dev/serial0')
-    System(
+    return System(
         claw=Claw(
             grip_servo=Servo(4),
             support_servo=Servo(3),
