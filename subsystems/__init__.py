@@ -17,6 +17,7 @@ class System:
         """Reset all subsystems to their neutral positions."""
         self.claw.open()
         self.end_effector.reset()
+        self.gantry.reset()
 
     def release(self) -> None:
         """Prepares the system for graceful shutdown."""

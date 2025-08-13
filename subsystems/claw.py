@@ -53,13 +53,13 @@ class Claw:
         if support is not None:
             self._set_support(support)
 
-    def open(self) -> None:
+    def open(self, *, support: bool = 1.0) -> None:
         """Sets the claw to the completely open position."""
-        self.set(grip=1.0, support=1.0)
+        self.set(grip=1.0, support=support)
         
-    def close(self) -> None:
+    def close(self, *, support: bool = 0.0) -> None:
         """Sets the claw to the completely closed position."""
-        self.set(grip=0.0, support=0.0)
+        self.set(grip=0.0, support=support)
 
 
 if __name__ == '__main__':

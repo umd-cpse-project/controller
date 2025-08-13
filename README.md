@@ -7,6 +7,7 @@ Controller implementation for the Raspberry Pi.
 - `pigpio` (i.e., run `sudo pigpiod`).
 - enable the I2C interface on the Raspberry Pi.
 - enable the serial interface on the Raspberry Pi.
+  - `sudo raspi-config` -> `Interface Options` -> `Serial Port` -> `No` for login shell, `Yes` for serial port hardware.
 
 ## Configuration
 
@@ -20,3 +21,5 @@ Ensure the following environment variables are set:
 - `GPIOZERO_PIN_FACTORY`
 - `UART_PORT` (default: `/dev/serial0`)
   - if using RPi 5, set this to `/dev/ttyAMA0` instead
+
+Then go to `config.py` and configure settings such as pin numberings, I2C addresses, etc.
