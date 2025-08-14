@@ -38,11 +38,11 @@ class Gantry:
     ) -> None:
         self._left = left
         self._right = right
-        self._zero_position = self._cartesian_to_steps(*position)
         self._steps_per_inch = (
             revolutions_per_inch * left.steps_per_revolution,
             revolutions_per_inch * right.steps_per_revolution,
         )
+        self._zero_position = self._cartesian_to_steps(*position)
 
     @property
     def left(self) -> TMCStepper:
