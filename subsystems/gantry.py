@@ -70,7 +70,7 @@ class Gantry:
         self._right.stop()
 
     def _cartesian_to_steps(self, x: float, y: float) -> tuple[int, int]:
-        ox, oy = self._zero_position
+        ox, oy = getattr(self, '_zero_position', (0.0, 0.0))
         x, y = x - ox, y - oy
         l, r = self._steps_per_inch
         return round(l * (y - x)), round(r * (y + x))

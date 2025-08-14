@@ -31,6 +31,7 @@ class System:
 
     def release(self) -> None:
         """Prepares the system for graceful shutdown."""
+        self.gantry.stop()
         self.gantry.disable()
 
     def process_sort_request(self, position: tuple[float, float]) -> None:
