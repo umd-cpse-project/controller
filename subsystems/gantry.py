@@ -110,9 +110,9 @@ class Gantry:
         y: float
             The target y-coordinate in inches.
         """
-        left, right = self._cartesian_to_steps(x, y)
-        self._left.run_to_position(left)
-        self._right.run_to_position(right)
+        self.set_target(x, y)
+        self._left.wait()
+        self._right.wait()
 
     def reset(self) -> None:
         """Reset the gantry to the initial position (0, 0)."""
