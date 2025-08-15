@@ -32,7 +32,7 @@ class TMCStepper:
         Defaults to 200 steps (1.8 degrees per step).
     """
     
-    __slots__ = ('_tmc', 'pulley_circumference')
+    __slots__ = ('_tmc', 'pulley_circumference', '_reverse')
 
     def __init__(
         self,
@@ -50,15 +50,16 @@ class TMCStepper:
             TmcMotionControlStepDir(step_pin, dir_pin),
             TmcComUart(uart),
         )
-        self._tmc.set_direction_reg(reverse)
-        self._tmc.set_current(current)
+        self._tmc.set_direction_reg(False)
+        self._tmc.set_current(current, hold_current_multiplier=0.3)
         self._tmc.set_interpolation(True)
-        self._tmc.set_spreadcycle(False)
-        self._tmc.set_microstepping_resolution(1)
+        self._tmc.set_spreadcycle(True)
+        self._tmc.set_microstepping_resolution(16)
         self._tmc.set_internal_rsense(False)
-        self._tmc.acceleration_fullstep = 1000
+        self._tmc.acceleration_fullstep = 2000
         self._tmc.max_speed_fullstep = 100
         self._tmc.fullsteps_per_rev = steps_per_revolution
+        self._reverse: int = -1 if reverse else 1
         self.enable()
 
     def enable(self) -> None:
@@ -71,7 +72,7 @@ class TMCStepper:
 
     def run_to_position(self, position: int) -> None:
         """Moves the stepper motor to an absolute position in steps, blocking the main thread."""
-        self._tmc.run_to_position_steps(position)
+        self._tmc.run_to_position_steps(position * self._reverse)
 
     def wait(self) -> None:
         """Waits for the stepper motor to finish its current operation."""
@@ -84,32 +85,32 @@ class TMCStepper:
     @property
     def position(self) -> int:
         """Gets the current position of the stepper motor in steps."""
-        return self._motion_control.current_pos
+        return self._motion_control.current_pos * self._reverse
 
     @property
     def target(self) -> int:
         """Gets the target position of the stepper motor in steps."""
-        return self._motion_control._target_pos
+        return self._motion_control._target_pos * self._reverse
 
     @target.setter
     def target(self, position: int) -> None:
         """Sets the target position for the stepper motor such that it runs async."""
-        self._motion_control.run_to_position_steps_threaded(position, MovementAbsRel.ABSOLUTE)
+        self._motion_control.run_to_position_steps_threaded(position * self._reverse, MovementAbsRel.ABSOLUTE)
 
     @property
     def speed(self) -> int:
         """Returns the speed of the stepper motor, in fullsteps/sec."""
-        return self._motion_control.speed_fullstep
+        return self._motion_control.speed_fullstep * self._reverse
     
     @property
     def target_speed(self) -> int:
         """Returns the target speed of the stepper motor, in fullsteps/sec."""
-        return self._motion_control.max_speed_fullstep
+        return self._motion_control.max_speed_fullstep * self._reverse
     
     @target_speed.setter
     def target_speed(self, speed: int) -> None:
         """Sets the target speed of the stepper motor, in fullsteps/sec."""
-        self._motion_control.max_speed_fullstep = speed
+        self._motion_control.max_speed_fullstep = speed * self._reverse
 
     @property
     def steps_per_revolution(self) -> int:

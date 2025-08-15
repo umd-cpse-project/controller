@@ -32,7 +32,7 @@ class Differential:
     def set(self, *, pitch: float | None = None, roll: float | None = None) -> None:
         l, r = self._neutral
         pitch = pitch if pitch is not None else self._last_pitch
-        roll = roll if pitch is not None else self._last_roll
+        roll = roll if roll is not None else self._last_roll
         
         self._left_servo.angle = l + pitch - roll
         self._right_servo.angle = r + pitch + roll
